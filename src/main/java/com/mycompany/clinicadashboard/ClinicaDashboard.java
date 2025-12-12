@@ -18,88 +18,77 @@ public class ClinicaDashboard extends JFrame {
     private final JTable table;
     private final DefaultTableModel model;
     private final List<Microservice> services = new ArrayList<>();
-    private final JLabel statusLabel = new JLabel("Listo - Haz doble clic en la ruta para editarla.");
+    private final JLabel statusLabel = new JLabel("Listo - Selecciona un servicio para controlarlo individualmente.");
 
-    // IMPORTANTE: Ajusta esto ("." o "..") según dónde esté tu carpeta del dashboard respecto a los proyectos
+    // AJUSTA ESTA RUTA SEGÚN TU CARPETA (Ej: "." si el dashboard está junto a las carpetas, o ".." si está dentro)
     private static final String ROOT_PATH = "..";
 
     public ClinicaDashboard() {
-        setTitle("Panel de Control - Clínica v3.0 (Con Atención)");
-        setSize(1100, 750);
+        setTitle("Panel de Control - Clínica Integral (Todos los Módulos)");
+        setSize(1200, 850);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // 1. Definir los servicios
+        // 1. CARGAR TODOS LOS SERVICIOS
         initServices();
 
-        // 2. Configurar Tabla
-        String[] columns = {"Servicio", "Estado", "PID", "Ruta JAR (Editable)"};
+        // 2. CONFIGURACIÓN DE LA TABLA
+        String[] columns = {"ID", "Servicio", "Estado", "PID", "Ruta JAR (Editable)"};
 
         model = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 3; // Solo la ruta es editable
+                return column == 4; // Solo la ruta es editable
             }
         };
 
         table = new JTable(model);
-        table.setRowHeight(35);
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setRowHeight(28);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION); // Selección única para control individual
 
-        // Listener para guardar cambios cuando editas la ruta
+        // Listener para editar rutas manualmente si es necesario
         model.addTableModelListener(e -> {
             if (e.getType() == javax.swing.event.TableModelEvent.UPDATE) {
                 int row = e.getFirstRow();
                 int col = e.getColumn();
-                if (col == 3) {
+                if (col == 4) {
                     String newPath = (String) model.getValueAt(row, col);
                     services.get(row).jarPath = newPath;
-                    statusLabel.setText("Ruta actualizada para: " + services.get(row).name);
                 }
             }
         });
 
-        // Configurar ancho de columnas
-        table.getColumnModel().getColumn(0).setPreferredWidth(200); // Nombre
-        table.getColumnModel().getColumn(1).setPreferredWidth(120); // Estado
-        table.getColumnModel().getColumn(2).setPreferredWidth(80);  // PID
-        table.getColumnModel().getColumn(3).setPreferredWidth(500); // Ruta
+        // Anchos de columna
+        table.getColumnModel().getColumn(0).setPreferredWidth(40);  // ID
+        table.getColumnModel().getColumn(1).setPreferredWidth(250); // Nombre
+        table.getColumnModel().getColumn(2).setPreferredWidth(100); // Estado
+        table.getColumnModel().getColumn(3).setPreferredWidth(60);  // PID
+        table.getColumnModel().getColumn(4).setPreferredWidth(400); // Ruta
 
-        updateTableUI(); // Carga inicial
-
-        // Renderizado de colores y Tooltips
+        // Renderizado de colores según estado
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                Microservice s = services.get(row);
+                String status = (String) model.getValueAt(row, 2);
 
-                Microservice service = services.get(row);
-                String statusText = (String) model.getValueAt(row, 1);
-
-                // Lógica de Colores
-                if ("CORRIENDO".equals(statusText)) {
-                    c.setForeground(new Color(0, 150, 0)); // Verde oscuro
+                if ("CORRIENDO".equals(status)) {
+                    c.setForeground(new Color(0, 128, 0)); // Verde
                     c.setFont(c.getFont().deriveFont(Font.BOLD));
-                    setToolTipText("El servicio está funcionando correctamente.");
-                } else if (statusText.startsWith("ERROR")) {
-                    c.setForeground(Color.RED); // Rojo para errores
+                } else if (status.startsWith("ERROR")) {
+                    c.setForeground(Color.RED);
                     c.setFont(c.getFont().deriveFont(Font.BOLD));
-                    // Mostrar las últimas líneas del log en el tooltip
-                    setToolTipText("<html><b>Error detectado:</b><br>" + service.getLastLogLines() + "</html>");
-                } else if ("INICIANDO...".equals(statusText)) {
+                } else if ("INICIANDO...".equals(status)) {
                     c.setForeground(Color.ORANGE);
-                    c.setFont(c.getFont().deriveFont(Font.ITALIC));
-                    setToolTipText("Esperando arranque...");
                 } else {
-                    c.setForeground(Color.BLACK);
+                    c.setForeground(Color.GRAY);
                     c.setFont(c.getFont().deriveFont(Font.PLAIN));
-                    setToolTipText(null);
                 }
 
-                // Color de fondo selección
                 if (isSelected) {
-                    c.setBackground(new Color(220, 240, 255));
+                    c.setBackground(new Color(230, 240, 255));
                 } else {
                     c.setBackground(Color.WHITE);
                 }
@@ -108,249 +97,227 @@ public class ClinicaDashboard extends JFrame {
             }
         });
 
-        // Menú Contextual (Clic Derecho)
-        JPopupMenu popupMenu = new JPopupMenu();
-        JMenuItem startItem = new JMenuItem("▶ Iniciar este servicio");
-        JMenuItem stopItem = new JMenuItem("⏹ Detener este servicio");
-        JMenuItem logItem = new JMenuItem("📄 Ver último log (Consola)");
+        // MENÚ CONTEXTUAL (CLIC DERECHO) - CONTROL INDIVIDUAL
+        JPopupMenu popup = new JPopupMenu();
+        JMenuItem itemStart = new JMenuItem("▶ Iniciar Servicio");
+        JMenuItem itemStop = new JMenuItem("⏹ Detener Servicio");
+        JMenuItem itemLog = new JMenuItem("📄 Ver Log");
 
-        startItem.addActionListener(e -> actionOnSelected(true));
-        stopItem.addActionListener(e -> actionOnSelected(false));
-        logItem.addActionListener(e -> showLogDialog());
+        itemStart.addActionListener(e -> actionOnSelected(true));
+        itemStop.addActionListener(e -> actionOnSelected(false));
+        itemLog.addActionListener(e -> showLogDialog());
 
-        popupMenu.add(startItem);
-        popupMenu.add(stopItem);
-        popupMenu.addSeparator();
-        popupMenu.add(logItem);
-        table.setComponentPopupMenu(popupMenu);
+        popup.add(itemStart);
+        popup.add(itemStop);
+        popup.addSeparator();
+        popup.add(itemLog);
+        table.setComponentPopupMenu(popup);
 
-        // Seleccionar fila al hacer clic derecho
-        table.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    int row = table.rowAtPoint(e.getPoint());
-                    if (row >= 0 && row < table.getRowCount()) {
-                        table.setRowSelectionInterval(row, row);
-                    }
-                }
-            }
-        });
+        // Scroll
+        add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JScrollPane scrollPane = new JScrollPane(table);
-        add(scrollPane, BorderLayout.CENTER);
+        // 3. PANEL DE BOTONES (INFERIOR)
+        JPanel botPanel = new JPanel();
+        botPanel.setLayout(new BoxLayout(botPanel, BoxLayout.Y_AXIS));
 
-        // 3. Panel de Control (Botonera)
-        JPanel controlPanel = new JPanel();
-        controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
+        // Fila 1: Control Individual
+        JPanel pnlIndividual = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        pnlIndividual.setBorder(BorderFactory.createTitledBorder("Control Individual (Seleccione una fila)"));
+        JButton btnStartOne = new JButton("▶ Iniciar Seleccionado");
+        JButton btnStopOne = new JButton("⏹ Detener Seleccionado");
+        JButton btnLog = new JButton("📄 Ver Log");
 
-        // Grupo: Acciones Globales
-        JPanel groupAll = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        groupAll.setBorder(BorderFactory.createTitledBorder("Control Global"));
-        JButton btnStartAll = new JButton("▶ INICIAR TODO (Secuencia)");
-        JButton btnStopAll = new JButton("⏹ DETENER TODO");
+        btnStartOne.addActionListener(e -> actionOnSelected(true));
+        btnStopOne.addActionListener(e -> actionOnSelected(false));
+        btnLog.addActionListener(e -> showLogDialog());
+
+        pnlIndividual.add(btnStartOne);
+        pnlIndividual.add(btnStopOne);
+        pnlIndividual.add(btnLog);
+
+        // Fila 2: Control Global
+        JPanel pnlGlobal = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        pnlGlobal.setBorder(BorderFactory.createTitledBorder("Control Masivo"));
+        JButton btnStartAll = new JButton("🚀 INICIAR TODO (Secuencia)");
+        JButton btnStopAll = new JButton("💀 DETENER TODO");
 
         btnStartAll.setBackground(new Color(200, 255, 200));
         btnStopAll.setBackground(new Color(255, 200, 200));
 
-        groupAll.add(btnStartAll);
-        groupAll.add(btnStopAll);
-
-        // Grupo: Acciones Individuales
-        JPanel groupSingle = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        groupSingle.setBorder(BorderFactory.createTitledBorder("Control Individual"));
-        JButton btnStartOne = new JButton("▶ Iniciar");
-        JButton btnStopOne = new JButton("⏹ Detener");
-        JButton btnRefresh = new JButton("🔄 Refrescar Tabla");
-
-        groupSingle.add(btnStartOne);
-        groupSingle.add(btnStopOne);
-        groupSingle.add(btnRefresh);
-
-        controlPanel.add(groupAll);
-        controlPanel.add(groupSingle);
-
-        add(controlPanel, BorderLayout.SOUTH);
-        add(statusLabel, BorderLayout.NORTH);
-
-        // Eventos de botones
         btnStartAll.addActionListener(e -> startAllSequence());
         btnStopAll.addActionListener(e -> stopAll());
-        btnStartOne.addActionListener(e -> actionOnSelected(true));
-        btnStopOne.addActionListener(e -> actionOnSelected(false));
-        btnRefresh.addActionListener(e -> updateTableUI());
 
-        // Timer para actualizar estado visual cada 2 segundos
-        new Timer(2000, e -> refreshTableStatusOnly()).start();
+        pnlGlobal.add(btnStartAll);
+        pnlGlobal.add(btnStopAll);
+
+        botPanel.add(pnlIndividual);
+        botPanel.add(pnlGlobal);
+
+        add(botPanel, BorderLayout.SOUTH);
+        add(statusLabel, BorderLayout.NORTH);
+
+        // Carga inicial de datos en tabla
+        refreshTableData();
+
+        // Timer para refrescar estado (PID, status) cada 2s
+        new Timer(2000, e -> refreshTableStatus()).start();
     }
 
-    // --- 1. DEFINICIÓN DE SERVICIOS ---
+    // --- REGISTRO DE TODOS LOS MICROSERVICIOS ---
     private void initServices() {
+        int id = 1;
         // Infraestructura
-        addService("Eureka Server", "eurekaserver/target/EurekaServer-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Eureka Server", "eurekaserver/target/EurekaServer-0.0.1-SNAPSHOT.jar");
 
         // APIs Base
-        addService("Api Medico", "apimedico/target/ApiMedico-0.0.1-SNAPSHOT.jar");
-        addService("Api Paciente", "apipaciente/target/ApiPaciente-0.0.1-SNAPSHOT.jar");
-        addService("Api Empleado", "apiempleado/target/ApiEmpleado-0.0.1-SNAPSHOT.jar");
-        addService("Api Especialidad", "apiespecialidad/target/ApiEspecialidad-0.0.1-SNAPSHOT.jar");
-        addService("Api Consultorio", "apiconsultorio/target/ApiConsultorio-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Medico", "apimedico/target/ApiMedico-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Paciente", "apipaciente/target/ApiPaciente-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Empleado", "apiempleado/target/ApiEmpleado-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Especialidad", "apiespecialidad/target/ApiEspecialidad-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Consultorio", "apiconsultorio/target/ApiConsultorio-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Medicamento", "apimedicamento/target/ApiMedicamento-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Tipo Analisis", "apitipoanalisis/target/ApiTipoAnalisis-0.0.1-SNAPSHOT.jar");
 
         // APIs Negocio
-        addService("Api Disponibilidad", "apidisponibilidad/target/ApiDisponibilidad-0.0.1-SNAPSHOT.jar");
-        addService("Api Horario", "apihorario/target/ApiHorario-0.0.1-SNAPSHOT.jar");
-        addService("Api SlotHorario", "apislothorario/target/ApiSlotHorario-0.0.1-SNAPSHOT.jar");
-        addService("Api Cita", "apicita/target/ApiCita-0.0.1-SNAPSHOT.jar");
-        addService("Api Historia", "apihistoria/target/ApiHistoria-0.0.1-SNAPSHOT.jar");
-        addService("Api Boleta", "apiboleta/target/ApiBoleta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Disponibilidad", "apidisponibilidad/target/ApiDisponibilidad-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Horario", "apihorario/target/ApiHorario-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api SlotHorario", "apislothorario/target/ApiSlotHorario-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Cita", "apicita/target/ApiCita-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Historia", "apihistoria/target/ApiHistoria-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Boleta", "apiboleta/target/ApiBoleta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Atencion", "apiatencion/target/ApiAtencion-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Receta (BD)", "apireceta/target/ApiReceta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Detalle Receta", "apidetallereceta/target/ApiDetalleReceta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Ficha Analisis (BD)", "apifichaanalisis/target/ApiFichaAnalisis-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Detalle Ficha", "apidetallefichaanalisis/target/ApiDetalleFichaAnalisis-0.0.1-SNAPSHOT.jar");
 
-        // --- NUEVOS SERVICIOS DE ATENCIÓN ---
-        addService("Api Atencion", "apiatencion/target/ApiAtencion-0.0.1-SNAPSHOT.jar");
-        addService("Api Nueva Atencion", "apinuevaatencion/target/ApiNuevaAtencion-0.0.1-SNAPSHOT.jar");
+        // APIs de Estado (Memoria/Sesion)
+        addService(id++, "Api Nueva Atencion", "apinuevaatencion/target/ApiNuevaAtencion-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Nueva Receta", "apinuevareceta/target/ApiNuevaReceta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Cesta Receta", "apicestareceta/target/ApiCestaReceta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Nueva Ficha", "apinuevafichaanalisis/target/ApiNuevaFichaAnalisis-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Api Cesta Ficha", "apicestafichaanalisis/target/ApiCestaFichaAnalisis-0.0.1-SNAPSHOT.jar");
 
-        // APIs Orquestadoras
-        addService("Api Gestion Cita", "apigestioncita/target/ApiGestionCita-0.0.1-SNAPSHOT.jar");
-        addService("Api Gestion Boleta", "apigestionboleta/target/ApiGestionBoleta-0.0.1-SNAPSHOT.jar");
-        addService("Api Gestion Historia", "apigestionhistoria/target/ApiGestionHistoria-0.0.1-SNAPSHOT.jar");
-        addService("Api Gestion Horario", "apigestionhorario/target/ApiGestionHorario-0.0.1-SNAPSHOT.jar");
-
-        // --- ORQUESTADOR ATENCIÓN ---
-        addService("Api Gestion Atencion", "apigestionatencion/target/ApiGestionAtencion-0.0.1-SNAPSHOT.jar");
+        // Orquestadores
+        addService(id++, "Gestión Horario", "apigestionhorario/target/ApiGestionHorario-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Gestión Cita", "apigestioncita/target/ApiGestionCita-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Gestión Boleta", "apigestionboleta/target/ApiGestionBoleta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Gestión Historia", "apigestionhistoria/target/ApiGestionHistoria-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Gestión Atencion", "apigestionatencion/target/ApiGestionAtencion-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Gestión Receta", "apigestionreceta/target/ApiGestionReceta-0.0.1-SNAPSHOT.jar");
+        addService(id++, "Gestión Ficha Analisis", "apigestionfichaanalisis/target/ApiGestionFichaAnalisis-0.0.1-SNAPSHOT.jar");
 
         // Frontend
-        addService("Clinica Web", "clinicaweb/target/ClinicaWeb-0.0.1-SNAPSHOT.jar");
+        addService(id++, ">>> CLINICA WEB <<<", "clinicaweb/target/ClinicaWeb-0.0.1-SNAPSHOT.jar");
     }
 
-    private void addService(String name, String path) {
-        services.add(new Microservice(name, path));
+    private void addService(int id, String name, String path) {
+        services.add(new Microservice(id, name, path));
     }
 
-    // --- ACCIONES ---
+    // --- LÓGICA DE CONTROL INDIVIDUAL ---
     private void actionOnSelected(boolean start) {
         int row = table.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Selecciona un servicio en la tabla.");
+            JOptionPane.showMessageDialog(this, "Por favor, selecciona un servicio de la lista.");
             return;
         }
         Microservice s = services.get(row);
         if (start) {
-            if (s.isRunning()) {
-                statusLabel.setText("Aviso: " + s.name + " ya está corriendo.");
-            } else {
+            if (!s.isRunning()) {
                 new Thread(() -> {
-                    s.manualStop = false; // Resetear bandera manual
+                    s.manualStop = false;
                     startService(s);
-                    statusLabel.setText("Intentando iniciar: " + s.name);
-                    updateTableUI();
+                    statusLabel.setText("Iniciando: " + s.name);
+                    refreshTableData();
                 }).start();
+            } else {
+                statusLabel.setText("El servicio " + s.name + " ya está corriendo.");
             }
         } else {
-            if (!s.isRunning()) {
-                statusLabel.setText("Aviso: " + s.name + " ya está detenido.");
-            } else {
-                s.manualStop = true; // Marcar como detenido manualmente para que no salga error
+            if (s.isRunning()) {
+                s.manualStop = true;
                 stopService(s);
                 statusLabel.setText("Detenido: " + s.name);
-                updateTableUI();
+                refreshTableData();
             }
         }
     }
 
-    private void showLogDialog() {
-        int row = table.getSelectedRow();
-        if (row == -1) {
-            return;
-        }
-        Microservice s = services.get(row);
-        JTextArea ta = new JTextArea(s.getFullLog());
-        ta.setEditable(false);
-        JScrollPane sp = new JScrollPane(ta);
-        sp.setPreferredSize(new Dimension(600, 400));
-        JOptionPane.showMessageDialog(this, sp, "Log de " + s.name, JOptionPane.INFORMATION_MESSAGE);
-    }
-
+    // --- LÓGICA DE CONTROL MASIVO ---
     private void startAllSequence() {
         new Thread(() -> {
-            statusLabel.setText("Iniciando secuencia completa...");
-
-            // 1. Eureka primero
+            // 1. Eureka
             Microservice eureka = services.get(0);
             if (!eureka.isRunning()) {
+                statusLabel.setText("Iniciando Eureka (Espere 10s)...");
                 startService(eureka);
-                statusLabel.setText("Esperando a Eureka (15s)...");
                 try {
-                    Thread.sleep(15000);
+                    Thread.sleep(10000);
                 } catch (Exception e) {
                 }
             }
-
-            // 2. El resto en orden
+            // 2. Resto
             for (int i = 1; i < services.size(); i++) {
                 Microservice s = services.get(i);
                 if (!s.isRunning()) {
                     statusLabel.setText("Iniciando " + s.name + "...");
                     startService(s);
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(1500);
                     } catch (Exception e) {
                     }
                 }
             }
-            statusLabel.setText("Secuencia finalizada.");
-            updateTableUI();
+            statusLabel.setText("Todos los servicios iniciados.");
+            refreshTableData();
         }).start();
     }
 
     private void stopAll() {
         new Thread(() -> {
-            statusLabel.setText("Deteniendo servicios...");
+            statusLabel.setText("Deteniendo todo...");
             for (Microservice s : services) {
                 s.manualStop = true;
                 stopService(s);
             }
-            updateTableUI();
-            statusLabel.setText("Todos los servicios detenidos.");
+            refreshTableData();
+            statusLabel.setText("Sistema detenido.");
         }).start();
     }
 
+    // --- MÉTODOS DE PROCESO ---
     private void startService(Microservice s) {
         try {
-            s.errorDetected = false; // Resetear error
+            s.errorDetected = false;
             s.clearLog();
-
-            File jarFile = new File(ROOT_PATH, s.jarPath);
-            if (!jarFile.exists()) {
-                s.appendLog("ERROR: Archivo JAR no encontrado en: " + jarFile.getAbsolutePath());
+            File jar = new File(ROOT_PATH, s.jarPath);
+            if (!jar.exists()) {
+                s.appendLog("ERROR: No se encuentra el JAR en " + jar.getAbsolutePath());
                 s.errorDetected = true;
-                SwingUtilities.invokeLater(this::updateTableUI);
                 return;
             }
-
-            ProcessBuilder pb = new ProcessBuilder("java", "-jar", jarFile.getAbsolutePath());
+            ProcessBuilder pb = new ProcessBuilder("java", "-jar", jar.getAbsolutePath());
             pb.directory(new File(ROOT_PATH));
-            pb.redirectErrorStream(true); // Combinar stdout y stderr
+            pb.redirectErrorStream(true);
             s.process = pb.start();
 
-            // Consumir stream en hilo aparte para leer errores
             new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(s.process.getInputStream()))) {
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(s.process.getInputStream()))) {
                     String line;
-                    while ((line = reader.readLine()) != null) {
+                    while ((line = r.readLine()) != null) {
                         s.appendLog(line);
-                        // Detección simple de error en el log (opcional)
                         if (line.contains("APPLICATION FAILED TO START")) {
                             s.errorDetected = true;
                         }
                     }
                 } catch (Exception e) {
-                    s.appendLog("Error leyendo stream: " + e.getMessage());
                 }
             }).start();
 
         } catch (Exception e) {
             s.errorDetected = true;
-            s.appendLog("Excepción al iniciar: " + e.getMessage());
-            e.printStackTrace();
+            s.appendLog(e.getMessage());
         }
     }
 
@@ -366,56 +333,41 @@ public class ClinicaDashboard extends JFrame {
         }
     }
 
-    // --- ACTUALIZACIÓN UI ---
-    private void updateTableUI() {
+    // --- UTILS ---
+    private void refreshTableData() {
         SwingUtilities.invokeLater(() -> {
-            int selectedRow = table.getSelectedRow();
+            int sel = table.getSelectedRow();
             model.setRowCount(0);
             for (Microservice s : services) {
-                model.addRow(new Object[]{
-                    s.name,
-                    getStatusString(s),
-                    s.isRunning() ? String.valueOf(s.process.pid()) : "-",
-                    s.jarPath
-                });
+                model.addRow(new Object[]{s.id, s.name, getStatus(s), s.isRunning() ? s.process.pid() : "-", s.jarPath});
             }
-            if (selectedRow >= 0 && selectedRow < table.getRowCount()) {
-                table.setRowSelectionInterval(selectedRow, selectedRow);
+            if (sel != -1 && sel < model.getRowCount()) {
+                table.setRowSelectionInterval(sel, sel);
             }
         });
     }
 
-    private void refreshTableStatusOnly() {
+    private void refreshTableStatus() {
         SwingUtilities.invokeLater(() -> {
             if (table.isEditing()) {
                 return;
             }
-
             for (int i = 0; i < services.size(); i++) {
                 Microservice s = services.get(i);
-
-                // Lógica de detección de cierre inesperado
-                if (s.process != null && !s.process.isAlive()) {
-                    int exitVal = s.process.exitValue();
-                    // 143 = SIGTERM (stop normal), 0 = Normal. Otro valor = Crash
-                    if (exitVal != 0 && exitVal != 143 && !s.manualStop) {
-                        s.errorDetected = true;
-                    }
+                // Detectar crash
+                if (s.process != null && !s.process.isAlive() && !s.manualStop && s.process.exitValue() != 0 && s.process.exitValue() != 143) {
+                    s.errorDetected = true;
                 }
-
-                String currentStatusInTable = (String) model.getValueAt(i, 1);
-                String realStatus = getStatusString(s);
-
-                // Solo actualizar si cambió el texto para no parpadear
-                if (!currentStatusInTable.equals(realStatus)) {
-                    model.setValueAt(realStatus, i, 1);
-                    model.setValueAt(s.isRunning() ? String.valueOf(s.process.pid()) : "-", i, 2);
+                String st = getStatus(s);
+                if (!st.equals(model.getValueAt(i, 2))) {
+                    model.setValueAt(st, i, 2);
+                    model.setValueAt(s.isRunning() ? s.process.pid() : "-", i, 3);
                 }
             }
         });
     }
 
-    private String getStatusString(Microservice s) {
+    private String getStatus(Microservice s) {
         if (s.errorDetected) {
             return "ERROR (Ver Log)";
         }
@@ -423,32 +375,36 @@ public class ClinicaDashboard extends JFrame {
             return "CORRIENDO";
         }
         if (s.process != null && s.process.isAlive()) {
-            return "INICIANDO..."; // Raro pero posible
+            return "INICIANDO...";
         }
         return "DETENIDO";
     }
 
-    public static void main(String[] args) {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
+    private void showLogDialog() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            return;
         }
+        Microservice s = services.get(row);
+        JTextArea ta = new JTextArea(s.getFullLog());
+        ta.setEditable(false);
+        JOptionPane.showMessageDialog(this, new JScrollPane(ta), "Log: " + s.name, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new ClinicaDashboard().setVisible(true));
     }
 
-    // Clase auxiliar interna
     static class Microservice {
 
-        String name;
-        String jarPath;
+        int id;
+        String name, jarPath;
         Process process;
-        boolean errorDetected = false;
-        boolean manualStop = false; // Para distinguir stop usuario vs crash
+        boolean errorDetected = false, manualStop = false;
+        StringBuilder log = new StringBuilder();
 
-        // Guardamos logs para mostrar error
-        private StringBuilder logBuffer = new StringBuilder();
-
-        public Microservice(String name, String jarPath) {
+        public Microservice(int id, String name, String jarPath) {
+            this.id = id;
             this.name = name;
             this.jarPath = jarPath;
         }
@@ -458,34 +414,22 @@ public class ClinicaDashboard extends JFrame {
         }
 
         public void clearLog() {
-            logBuffer.setLength(0);
+            log.setLength(0);
         }
 
-        public void appendLog(String line) {
-            // Guardar solo las ultimas ~50 lineas para no saturar memoria
-            if (logBuffer.length() > 10000) {
-                logBuffer.delete(0, 2000);
+        public void appendLog(String l) {
+            if (log.length() > 20000) {
+                log.delete(0, 5000);
             }
-            logBuffer.append(line).append("\n");
+            log.append(l).append("\n");
         }
 
         public String getLastLogLines() {
-            String content = logBuffer.toString();
-            String[] lines = content.split("\n");
-            // Devolver ultimas 3 lineas para el tooltip
-            int count = 0;
-            StringBuilder sb = new StringBuilder();
-            for (int i = lines.length - 1; i >= 0 && count < 4; i--) {
-                if (!lines[i].trim().isEmpty()) {
-                    sb.insert(0, lines[i] + "<br>");
-                    count++;
-                }
-            }
-            return sb.toString();
+            return log.length() > 200 ? log.substring(log.length() - 200) : log.toString();
         }
 
         public String getFullLog() {
-            return logBuffer.toString();
+            return log.toString();
         }
     }
 }
